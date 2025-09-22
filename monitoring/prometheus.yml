@@ -22,11 +22,13 @@ scrape_configs:
     scrape_interval: 30s
     scrape_timeout: 10s
 
-  - job_name: 'kafka'
-    static_configs:
-      - targets: ['kafka:9092']
-    metrics_path: '/metrics'
-    scrape_interval: 30s
+  # Kafka metrics are not available on port 9092
+  # If you need Kafka metrics, use a JMX exporter or Kafka's built-in metrics
+  # - job_name: 'kafka'
+  #   static_configs:
+  #     - targets: ['kafka:9092']
+  #   metrics_path: '/metrics'
+  #   scrape_interval: 30s
 
   - job_name: 'postgresql'
     static_configs:

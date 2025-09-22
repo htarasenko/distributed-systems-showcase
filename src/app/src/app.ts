@@ -92,6 +92,104 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Kafka publishing function with connection management
+let isProducerConnected = false;
+
+async function publishKafkaMessage(
+  betId: string,
+  userId: string,
+  amount: number,
+  gameId: string,
+  betType: 'win' | 'lose' | 'draw' | 'over' | 'under' | 'exact_score' | 'total_goals' | 'first_goal' | 'last_goal',
+  betValue: string | undefined,
+  odds: number,
+  potentialWin: number,
+  transactionId: string,
+  newBalance: number
+): Promise<void> {
+  try {
+    // Connect producer if not already connected
+    if (!isProducerConnected) {
+      logger.info('Attempting to connect to Kafka producer...');
+      await producer.connect();
+      isProducerConnected = true;
+      logger.info('Kafka producer connected successfully');
+    }
+
+    // Create a simple, clean message object to avoid any circular references
+    const kafkaMessage = {
+      betId: String(betId),
+      userId: String(userId),
+      amount: Number(amount),
+      gameId: String(gameId),
+      betType: String(betType),
+      betValue: betValue ? String(betValue) : undefined,
+      odds: Number(odds),
+      potentialWin: Number(potentialWin),
+      transactionId: String(transactionId),
+      newBalance: Number(newBalance),
+      timestamp: new Date().toISOString()
+    };
+
+    // Remove undefined values to keep message clean
+    Object.keys(kafkaMessage).forEach(key => {
+      if (kafkaMessage[key] === undefined) {
+        delete kafkaMessage[key];
+      }
+    });
+
+    const messageString = JSON.stringify(kafkaMessage);
+    const messageSize = messageString.length;
+
+    logger.info('Publishing message to Kafka topic bet-events', {
+      betId,
+      messageSize,
+      messagePreview: messageString.substring(0, 200) + '...'
+    });
+
+    // Check if message is too large (Kafka default max is 1MB)
+    if (messageSize > 1000000) { // 1MB
+      logger.error('Message too large for Kafka', {
+        betId,
+        messageSize,
+        maxSize: 1000000,
+        message: messageString
+      });
+      return;
+    }
+
+    // Additional safety check - if message is suspiciously large, abort
+    if (messageSize > 10000) { // 10KB should be more than enough for our message
+      logger.error('Message suspiciously large, aborting', {
+        betId,
+        messageSize,
+        message: messageString
+      });
+      return;
+    }
+
+    await producer.send({
+      topic: 'bet-events',
+      messages: [{
+        key: betId,
+        value: messageString
+      }]
+    });
+
+    kafkaMessagesProduced.labels('bet-events').inc();
+    logger.info('Kafka message published successfully', { betId });
+
+  } catch (kafkaError) {
+    logger.error('Kafka publishing failed (bet was successful):', kafkaError);
+
+    // Reset connection flag on error
+    isProducerConnected = false;
+
+    // Don't fail the request - bet was already processed
+    // In production, you might want to implement a retry queue or dead letter queue
+  }
+}
+
 // Health check endpoint
 app.get('/health', async (_req: Request, res: Response) => {
   try {
@@ -244,43 +342,14 @@ app.post('/api/bet', async (req: Request, res: Response): Promise<void> => {
       res.json(response);
 
       // Step 3: Publish event to Kafka (asynchronous, after response)
-      try {
-        await producer.connect();
-        const kafkaMessage: BetEventMessage = {
-          betId,
-          userId,
-          amount,
-          gameId,
-          betType,
-          ...(betValue && { betValue }),
-          odds,
-          potentialWin,
-          transactionId,
-          newBalance,
-          timestamp: new Date().toISOString()
-        };
+      publishKafkaMessage(betId, userId, amount, gameId, betType, betValue, odds, potentialWin, transactionId, newBalance);
 
-        await producer.send({
-          topic: 'bet-events',
-          messages: [{
-            key: betId,
-            value: JSON.stringify(kafkaMessage)
-          }]
-        });
-
-        kafkaMessagesProduced.labels('bet-events').inc();
-
-        logger.info('Bet processed successfully', {
-          betId,
-          transactionId,
-          newBalance,
-          dbDuration
-        });
-
-      } catch (kafkaError) {
-        logger.error('Kafka publishing failed (bet was successful):', kafkaError);
-        // Don't fail the request - bet was already processed
-      }
+      logger.info('Bet processed successfully', {
+        betId,
+        transactionId,
+        newBalance,
+        dbDuration
+      });
 
     } catch (dbError) {
       await client.query('ROLLBACK');
