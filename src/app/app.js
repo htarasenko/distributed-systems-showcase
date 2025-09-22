@@ -157,6 +157,7 @@ const betSchema = Joi.object({
 // Betting endpoint - demonstrates gRPC + Kafka workflow
 app.post('/api/bet', async (req, res) => {
   const startTime = Date.now();
+  const client = await pgPool.connect();
   
   try {
     // Validate input
@@ -170,75 +171,118 @@ app.post('/api/bet', async (req, res) => {
 
     const { userId, amount, gameId, betType } = value;
     const betId = uuidv4();
+    const transactionId = `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     logger.info('Processing bet', { betId, userId, amount, gameId, betType });
 
-    // Step 1: gRPC call to wallet service (synchronous, low-latency)
-    const grpcStart = Date.now();
-    const walletResponse = await new Promise((resolve, reject) => {
-      grpcClient.DeductBalance({
-        userId,
-        amount,
-        transactionId: betId
-      }, (error, response) => {
-        if (error) {
-          grpcRequestsTotal.labels('DeductBalance', 'error').inc();
-          reject(error);
-        } else {
-          grpcRequestsTotal.labels('DeductBalance', 'success').inc();
-          resolve(response);
+    // Step 1: PostgreSQL Transaction (ACID)
+    await client.query('BEGIN');
+    
+    try {
+      // Check user balance with row lock
+      const balanceResult = await client.query(
+        'SELECT balance, version FROM user_balances WHERE user_id = $1 FOR UPDATE',
+        [userId]
+      );
+
+      if (balanceResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'User not found',
+          betId
+        });
+      }
+
+      const { balance, version } = balanceResult.rows[0];
+
+      if (balance < amount) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          error: 'Insufficient balance',
+          betId,
+          currentBalance: balance
+        });
+      }
+
+      const newBalance = balance - amount;
+
+      // Update balance with optimistic locking
+      const updateResult = await client.query(
+        'UPDATE user_balances SET balance = $1, version = version + 1, updated_at = NOW() WHERE user_id = $2 AND version = $3',
+        [newBalance, userId, version]
+      );
+
+      if (updateResult.rowCount === 0) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'Concurrent modification detected. Please retry.',
+          betId
+        });
+      }
+
+      // Insert transaction record
+      await client.query(
+        'INSERT INTO wallet_transactions (user_id, transaction_id, transaction_type, amount, balance_before, balance_after, bet_id, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [userId, transactionId, 'bet', amount, balance, newBalance, betId, 'completed']
+      );
+
+      // Commit transaction
+      await client.query('COMMIT');
+
+      const dbDuration = Date.now() - startTime;
+
+      // Step 2: Response to user (immediate)
+      res.json({
+        betId,
+        status: 'accepted',
+        transactionId,
+        newBalance,
+        processingTime: {
+          database: dbDuration,
+          total: Date.now() - startTime
         }
       });
-    });
-    const grpcDuration = Date.now() - grpcStart;
 
-    if (!walletResponse.success) {
-      return res.status(400).json({
-        error: 'Insufficient balance',
-        betId
-      });
-    }
+      // Step 3: Publish event to Kafka (asynchronous, after response)
+      try {
+        await producer.connect();
+        const kafkaMessage = {
+          betId,
+          userId,
+          amount,
+          gameId,
+          betType,
+          transactionId,
+          newBalance,
+          timestamp: new Date().toISOString()
+        };
 
-    // Step 2: Publish event to Kafka (asynchronous, high-throughput)
-    await producer.connect();
-    const kafkaMessage = {
-      betId,
-      userId,
-      amount,
-      gameId,
-      betType,
-      timestamp: new Date().toISOString(),
-      walletTransactionId: walletResponse.transactionId
-    };
+        await producer.send({
+          topic: 'bet-events',
+          messages: [{
+            key: betId,
+            value: JSON.stringify(kafkaMessage)
+          }]
+        });
 
-    await producer.send({
-      topic: 'bet-events',
-      messages: [{
-        key: betId,
-        value: JSON.stringify(kafkaMessage)
-      }]
-    });
+        kafkaMessagesProduced.labels('bet-events').inc();
 
-    kafkaMessagesProduced.labels('bet-events').inc();
+        logger.info('Bet processed successfully', {
+          betId,
+          transactionId,
+          newBalance,
+          dbDuration
+        });
 
-    const totalDuration = Date.now() - startTime;
-
-    logger.info('Bet processed successfully', {
-      betId,
-      grpcDuration,
-      totalDuration,
-      walletTransactionId: walletResponse.transactionId
-    });
-
-    res.json({
-      betId,
-      status: 'accepted',
-      walletTransactionId: walletResponse.transactionId,
-      processingTime: {
-        grpc: grpcDuration,
-        total: totalDuration
+      } catch (kafkaError) {
+        logger.error('Kafka publishing failed (bet was successful):', kafkaError);
+        // Don't fail the request - bet was already processed
       }
-    });
+
+    } catch (dbError) {
+      await client.query('ROLLBACK');
+      throw dbError;
+    }
 
   } catch (error) {
     logger.error('Bet processing failed:', error);
@@ -246,6 +290,8 @@ app.post('/api/bet', async (req, res) => {
       error: 'Internal server error',
       betId: req.body.betId || 'unknown'
     });
+  } finally {
+    client.release();
   }
 });
 

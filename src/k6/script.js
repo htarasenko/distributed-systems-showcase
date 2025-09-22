@@ -31,27 +31,44 @@ export const options = {
 // Test data
 const baseUrl = __ENV.APP_URL || 'http://localhost:3000';
 const userIds = [
-  '550e8400-e29b-41d4-a716-446655440001',
-  '550e8400-e29b-41d4-a716-446655440002',
-  '550e8400-e29b-41d4-a716-446655440003',
-  '550e8400-e29b-41d4-a716-446655440004',
-  '550e8400-e29b-41d4-a716-446655440005',
+  '4fddbc69-0adb-4e82-9437-68297f6eaf80', // john_doe
+  '660ad775-3bda-4ed0-8b70-c6bc9e361c5c', // jane_smith
+  '251d2e8c-0da0-4b04-a3cd-fa3e6824da32', // mike_wilson
+  '06959c2c-7315-4acc-9966-b733a891a648', // sarah_brown
+  '98668a8b-c4ef-48f9-90b0-6c173f6a9e86', // alex_jones
 ];
 
-const gameIds = ['game-1', 'game-2', 'game-3', 'game-4', 'game-5'];
-const betTypes = ['single', 'multiple', 'system'];
+const gameIds = [
+  '9829cb8b-ed9a-4b0a-9b18-bbe4be265caf', // Real Madrid vs Barcelona
+  'c2cb5120-70b9-4c6c-8d14-da815ff38ab6', // Lakers vs Warriors
+  'be62b201-ce68-41fe-bab3-a48b61453b46', // Djokovic vs Nadal
+  '9a314a76-6506-45a8-a6ed-4b6170491097', // CS:GO Major Championship
+  '7ab7a374-e317-4446-b6c9-0c95145ec54d', // Kentucky Derby
+];
+
+const betTypes = ['win', 'lose', 'draw', 'over', 'under', 'exact_score', 'total_goals', 'first_goal', 'last_goal'];
+const betValues = [
+  'Real Madrid', 'Barcelona', 'Lakers', 'Warriors', 'Djokovic', 'Nadal',
+  '2-1', '3-0', '1-1', 'over 2.5', 'under 3.5', 'Messi', 'Ronaldo'
+];
 
 // Helper function to generate random bet data
 function generateBetData() {
+  const betType = betTypes[Math.floor(Math.random() * betTypes.length)];
+  const betValue = betValues[Math.floor(Math.random() * betValues.length)];
+  const odds = Math.random() * 9 + 1.1; // Random odds between 1.1-10.1
+  
   return {
     userId: userIds[Math.floor(Math.random() * userIds.length)],
-    amount: Math.random() * 100 + 1, // Random amount between 1-101
     gameId: gameIds[Math.floor(Math.random() * gameIds.length)],
-    betType: betTypes[Math.floor(Math.random() * betTypes.length)]
+    amount: Math.random() * 100 + 1, // Random amount between 1-101
+    betType: betType,
+    betValue: betValue,
+    odds: Math.round(odds * 100) / 100 // Round to 2 decimal places
   };
 }
 
-// Helper function to simulate gRPC latency (since we can't directly measure it in K6)
+// Helper function to simulate database latency (since we can't directly measure it in K6)
 function simulateGrpcLatency() {
   const latency = Math.random() * 50 + 10; // 10-60ms
   grpcLatency.add(latency);
@@ -88,17 +105,19 @@ export default function () {
     'bet request status is 200': (r) => r.status === 200,
     'bet response time < 200ms': (r) => r.timings.duration < 200,
     'bet response has betId': (r) => JSON.parse(r.body).betId !== undefined,
-    'bet response has walletTransactionId': (r) => JSON.parse(r.body).walletTransactionId !== undefined,
+    'bet response has transactionId': (r) => JSON.parse(r.body).transactionId !== undefined,
+    'bet response has newBalance': (r) => JSON.parse(r.body).newBalance !== undefined,
+    'bet response has potentialWin': (r) => JSON.parse(r.body).potentialWin !== undefined,
   });
 
   if (betSuccess) {
     betCounter.add(1);
     
-    // Simulate gRPC and Kafka latencies based on response
+    // Record database and Kafka latencies based on response
     const responseData = JSON.parse(betResponse.body);
     if (responseData.processingTime) {
-      grpcLatency.add(responseData.processingTime.grpc || 0);
-      kafkaLatency.add(responseData.processingTime.total - (responseData.processingTime.grpc || 0));
+      grpcLatency.add(responseData.processingTime.database || 0);
+      kafkaLatency.add(responseData.processingTime.total - (responseData.processingTime.database || 0));
     } else {
       // Fallback simulation
       simulateGrpcLatency();
@@ -139,7 +158,7 @@ export default function () {
 export function setup() {
   console.log('Starting distributed systems load test...');
   console.log(`Target URL: ${baseUrl}`);
-  console.log('Test will simulate betting workflow with gRPC + Kafka + PostgreSQL + ClickHouse');
+  console.log('Test will simulate betting workflow with PostgreSQL + Kafka + ClickHouse');
 }
 
 export function teardown(data) {
