@@ -1,0 +1,85 @@
+# Kafka configuration for distributed-systems-showcase
+# This configuration is optimized for development and testing
+
+# Global configuration
+global:
+  storageClass: ""
+
+# Kafka configuration
+kafka:
+  # Enable persistence for data durability
+  persistence:
+    enabled: true
+    size: 8Gi
+    storageClass: ""
+  
+  # Configure replicas for high availability
+  replicas: 1
+  
+  # JVM heap settings for better performance
+  heapOpts: "-Xmx512M -Xms512M"
+  
+  # Enable auto-creation of topics
+  defaultTopicCreation: true
+  
+  # Configure listeners
+  listeners:
+    - name: "PLAINTEXT"
+      port: 9092
+      protocol: "PLAINTEXT"
+  
+  # Configure advertised listeners for external access
+  advertisedListeners:
+    - name: "PLAINTEXT"
+      port: 9092
+      protocol: "PLAINTEXT"
+      host: "localhost"
+  
+  # Enable JMX metrics for monitoring
+  jmx:
+    enabled: true
+    port: 5555
+  
+  # Log configuration
+  logDirs: "/bitnami/kafka/data"
+  
+  # Auto-create topics
+  autoCreateTopicsEnable: true
+
+# Zookeeper configuration (required for Kafka)
+zookeeper:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: ""
+  
+  # Zookeeper replicas
+  replicas: 1
+
+# Service configuration
+service:
+  type: LoadBalancer
+  ports:
+    external: 9092
+    internal: 9092
+
+# Metrics configuration for monitoring
+metrics:
+  kafka:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  jmx:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# Resource limits
+resources:
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi

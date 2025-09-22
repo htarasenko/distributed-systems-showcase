@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "distributed-systems-showcase.configMapName" . }}
+  labels:
+    {{- include "distributed-systems-showcase.labels" . | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.app.env.NODE_ENV | quote }}
+  PORT: {{ .Values.app.env.PORT | quote }}
+  DATABASE_URL: "postgresql://postgres:{{ .Values.postgresql.auth.postgresPassword }}@{{ include "distributed-systems-showcase.fullname" . }}-postgresql:5432/{{ .Values.postgresql.auth.database }}"
+  CLICKHOUSE_URL: "http://{{ include "distributed-systems-showcase.fullname" . }}-clickhouse:8123"
+  KAFKA_BROKERS: "{{ include "distributed-systems-showcase.fullname" . }}-kafka:9092"
+  GRPC_WALLET_URL: "{{ include "distributed-systems-showcase.fullname" . }}-wallet:50051"

@@ -1,0 +1,41 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - "rules/*.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'distributed-systems-app'
+    static_configs:
+      - targets: ['distributed-systems-app:3000']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka:9092']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'postgresql'
+    static_configs:
+      - targets: ['postgres:5432']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  - job_name: 'clickhouse'
+    static_configs:
+      - targets: ['clickhouse:8123']
+    metrics_path: '/metrics'
+    scrape_interval: 30s

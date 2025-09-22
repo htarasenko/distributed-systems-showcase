@@ -1,0 +1,188 @@
+# Default values for distributed-systems-showcase
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+# Application settings
+app:
+  name: distributed-systems-app
+  image:
+    repository: distributed-systems-app
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 3
+  service:
+    type: LoadBalancer
+    port: 3000
+    targetPort: 3000
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+  env:
+    NODE_ENV: production
+    PORT: 3000
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+# K6 Load Testing
+k6:
+  enabled: true
+  name: distributed-systems-k6
+  image:
+    repository: grafana/k6
+    tag: latest
+    pullPolicy: IfNotPresent
+  job:
+    concurrency: 1
+    parallelism: 1
+    backoffLimit: 3
+    activeDeadlineSeconds: 1800
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+# PostgreSQL Database
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "postgres"
+    database: "distributed_systems"
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+
+# ClickHouse Database
+clickhouse:
+  enabled: true
+  auth:
+    clickhousePassword: ""
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+
+# Kafka
+kafka:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    enabled: true
+    size: 8Gi
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  zookeeper:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 4Gi
+
+# Prometheus Monitoring
+prometheus:
+  enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 10Gi
+    resources:
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+      requests:
+        cpu: 500m
+        memory: 1Gi
+
+# Grafana Visualization
+grafana:
+  enabled: true
+  adminPassword: "admin"
+  persistence:
+    enabled: true
+    size: 5Gi
+  resources:
+    limits:
+      cpu: 500m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 512Mi
+
+# Service Monitor for Prometheus
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Ingress
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: distributed-systems.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Network Policies
+networkPolicy:
+  enabled: false
+  ingress: []
+  egress: []
+
+# Pod Security Policy
+podSecurityPolicy:
+  enabled: false
+
+# Service Account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: 1
