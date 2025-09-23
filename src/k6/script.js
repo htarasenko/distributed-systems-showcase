@@ -84,7 +84,7 @@ function simulateKafkaLatency() {
 
 export default function () {
   // Test 1: Health check
-  const healthResponse = http.get(`${baseUrl}/health`);
+  const healthResponse = http.get(`${baseUrl}/api/health`);
   check(healthResponse, {
     'health check status is 200': (r) => r.status === 200,
     'health check response time < 100ms': (r) => r.timings.duration < 100,

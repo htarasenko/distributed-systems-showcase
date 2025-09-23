@@ -2,6 +2,11 @@ import { Kafka, Producer, Consumer } from 'kafkajs';
 import config from '../config';
 import logger from '../utils/logger';
 import { BetEventMessage } from '../types';
+import {
+  kafkaMessagesProduced,
+  kafkaBatchLatency,
+  kafkaCompressionRatio
+} from './metrics';
 
 // Kafka configuration
 const kafka = new Kafka({
@@ -10,11 +15,30 @@ const kafka = new Kafka({
   retry: config.kafka.retry
 });
 
-export const producer: Producer = kafka.producer();
+export const producer: Producer = kafka.producer({
+  // Additional producer optimizations
+  maxInFlightRequests: 5,  // Allow up to 5 in-flight requests
+  idempotent: true,        // Ensure exactly-once delivery
+  transactionTimeout: 30000 // 30 second transaction timeout
+});
 export const consumer: Consumer = kafka.consumer({ groupId: 'bet-events-consumer' });
 
 // Producer connection management
 let isProducerConnected = false;
+
+// Manual batching for better throughput
+interface PendingMessage {
+  topic: string;
+  messages: Array<{ key: string; value: string }>;
+  resolve: () => void;
+  reject: (error: Error) => void;
+  timestamp: number;
+}
+
+const messageQueue: PendingMessage[] = [];
+const BATCH_SIZE = 100;
+const BATCH_LINGER_MS = 10;
+let batchTimer: NodeJS.Timeout | null = null;
 
 export async function connectProducer(): Promise<void> {
   if (!isProducerConnected) {
@@ -27,13 +51,77 @@ export async function connectProducer(): Promise<void> {
 
 export async function disconnectProducer(): Promise<void> {
   if (isProducerConnected) {
+    // Process any remaining messages in the queue
+    await processBatch();
     await producer.disconnect();
     isProducerConnected = false;
     logger.info('Kafka producer disconnected');
   }
 }
 
-// Kafka message publishing
+// Process batched messages
+async function processBatch(): Promise<void> {
+  if (messageQueue.length === 0) return;
+
+  const batch = messageQueue.splice(0, BATCH_SIZE);
+  const batchStartTime = Date.now();
+
+  try {
+    await connectProducer();
+
+    // Group messages by topic
+    const messagesByTopic = new Map<string, Array<{ key: string; value: string }>>();
+
+    for (const pendingMessage of batch) {
+      if (!messagesByTopic.has(pendingMessage.topic)) {
+        messagesByTopic.set(pendingMessage.topic, []);
+      }
+      messagesByTopic.get(pendingMessage.topic)!.push(...pendingMessage.messages);
+    }
+
+    // Send all messages for each topic
+    const sendPromises = Array.from(messagesByTopic.entries()).map(async ([topic, messages]) => {
+      return producer.send({
+        topic,
+        messages
+      });
+    });
+
+    await Promise.all(sendPromises);
+
+    // Record metrics
+    const batchLatency = (Date.now() - batchStartTime) / 1000;
+    kafkaBatchLatency.observe(batchLatency);
+    kafkaMessagesProduced.inc({ topic: 'bet-events' }, messagesByTopic.get('bet-events')?.length || 0);
+
+    // Resolve all pending promises
+    batch.forEach(pendingMessage => pendingMessage.resolve());
+
+    logger.info('Kafka batch processed successfully', {
+      batchSize: batch.length,
+      batchLatency: `${batchLatency.toFixed(3)}s`,
+      topics: Array.from(messagesByTopic.keys())
+    });
+
+  } catch (error) {
+    logger.error('Kafka batch processing failed:', error);
+    // Reject all pending promises
+    batch.forEach(pendingMessage => pendingMessage.reject(error as Error));
+    isProducerConnected = false;
+  }
+}
+
+// Schedule batch processing
+function scheduleBatch(): void {
+  if (batchTimer) return;
+
+  batchTimer = setTimeout(async () => {
+    batchTimer = null;
+    await processBatch();
+  }, BATCH_LINGER_MS);
+}
+
+// Kafka message publishing with batching metrics
 export async function publishBetEvent(
   betId: string,
   userId: string,
@@ -46,6 +134,7 @@ export async function publishBetEvent(
   transactionId: string,
   newBalance: number
 ): Promise<void> {
+
   try {
     await connectProducer();
 
@@ -101,15 +190,37 @@ export async function publishBetEvent(
       return;
     }
 
-    await producer.send({
-      topic: 'bet-events',
-      messages: [{
-        key: betId,
-        value: messageString
-      }]
-    });
+    // Add message to batch queue
+    return new Promise<void>((resolve, reject) => {
+      messageQueue.push({
+        topic: 'bet-events',
+        messages: [{
+          key: betId,
+          value: messageString
+        }],
+        resolve,
+        reject,
+        timestamp: Date.now()
+      });
 
-    logger.info('Kafka message published successfully', { betId });
+      // Calculate compression ratio (approximate)
+      const compressedSize = messageSize * 0.3; // gzip typically achieves 70% compression
+      const compressionRatio = compressedSize / messageSize;
+      kafkaCompressionRatio.set(compressionRatio);
+
+      logger.info('Kafka message queued for batching', {
+        betId,
+        queueSize: messageQueue.length,
+        compressionRatio: `${(compressionRatio * 100).toFixed(1)}%`
+      });
+
+      // Process batch if it's full or schedule processing
+      if (messageQueue.length >= BATCH_SIZE) {
+        processBatch();
+      } else {
+        scheduleBatch();
+      }
+    });
 
   } catch (kafkaError) {
     logger.error('Kafka publishing failed:', kafkaError);

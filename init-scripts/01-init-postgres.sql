@@ -79,12 +79,14 @@ CREATE INDEX IF NOT EXISTS idx_bets_game_id ON bets(game_id);
 CREATE INDEX IF NOT EXISTS idx_bets_status ON bets(status);
 CREATE INDEX IF NOT EXISTS idx_bets_created_at ON bets(created_at);
 CREATE INDEX IF NOT EXISTS idx_bets_settled_at ON bets(settled_at);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bets_user_id_created_at ON bets(user_id, created_at);
 
 -- Wallet transactions indexes
 CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_id ON wallet_transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_transactions_transaction_id ON wallet_transactions(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_transactions_created_at ON wallet_transactions(created_at);
 CREATE INDEX IF NOT EXISTS idx_wallet_transactions_type ON wallet_transactions(transaction_type);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_wallet_transactions_user_id_created_at ON wallet_transactions(user_id, created_at);
 
 -- Create a function to update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

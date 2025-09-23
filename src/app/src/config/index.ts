@@ -6,10 +6,10 @@ export const config: AppConfig = {
 
   database: {
     connectionString: process.env['DATABASE_URL'] || 'postgresql://postgres:postgres@localhost:5432/distributed_systems',
-    max: parseInt(process.env['DB_MAX_CONNECTIONS'] || '20', 10),
-    min: parseInt(process.env['DB_MIN_CONNECTIONS'] || '5', 10),
-    idleTimeoutMillis: parseInt(process.env['DB_IDLE_TIMEOUT'] || '30000', 10),
-    connectionTimeoutMillis: parseInt(process.env['DB_CONNECTION_TIMEOUT'] || '2000', 10)
+    max: parseInt(process.env['DB_MAX_CONNECTIONS'] || '50', 10),
+    min: parseInt(process.env['DB_MIN_CONNECTIONS'] || '10', 10),
+    idleTimeoutMillis: parseInt(process.env['DB_IDLE_TIMEOUT'] || '60000', 10),
+    connectionTimeoutMillis: parseInt(process.env['DB_CONNECTION_TIMEOUT'] || '5000', 10)
   },
 
   kafka: {
