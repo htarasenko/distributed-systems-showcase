@@ -32,6 +32,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./init-scripts/clickhouse-config.xml:/etc/clickhouse-server/config.d/custom.xml
+      - ./init-scripts/02-init-clickhouse.sql:/docker-entrypoint-initdb.d/02-init-clickhouse.sql
     networks:
       - distributed-systems
 
