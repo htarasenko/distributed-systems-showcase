@@ -4,7 +4,6 @@ import { Rate, Trend, Counter } from 'k6/metrics';
 
 // Custom metrics
 const errorRate = new Rate('error_rate');
-const grpcLatency = new Trend('grpc_latency');
 const kafkaLatency = new Trend('kafka_latency');
 const betCounter = new Counter('bets_processed');
 
@@ -22,7 +21,6 @@ export const options = {
   thresholds: {
     http_req_duration: ['p(95)<200'], // 95% of requests must complete below 200ms
     http_req_failed: ['rate<0.1'], // Error rate must be below 10%
-    grpc_latency: ['p(99)<100'], // 99% of gRPC calls must complete below 100ms
     kafka_latency: ['p(95)<50'], // 95% of Kafka operations must complete below 50ms
     error_rate: ['rate<0.05'], // Overall error rate must be below 5%
   },
@@ -31,19 +29,19 @@ export const options = {
 // Test data
 const baseUrl = __ENV.APP_URL || 'http://localhost:3000';
 const userIds = [
-  '4fddbc69-0adb-4e82-9437-68297f6eaf80', // john_doe
-  '660ad775-3bda-4ed0-8b70-c6bc9e361c5c', // jane_smith
-  '251d2e8c-0da0-4b04-a3cd-fa3e6824da32', // mike_wilson
-  '06959c2c-7315-4acc-9966-b733a891a648', // sarah_brown
-  '98668a8b-c4ef-48f9-90b0-6c173f6a9e86', // alex_jones
+  '31c13867-275d-4890-a097-5945199642e4', // john_doe
+  'e4fd9b5f-ca82-4e4b-86c3-c025fb2e2c4f', // jane_smith
+  '2838b441-6aad-4f7d-9c34-af3f37a8730f', // mike_wilson
+  'c0b8e7f0-bdd6-4be4-abdb-32c85353da5a', // sarah_brown
+  'd3c05720-b864-480c-947a-6c18e5d31589', // alex_jones
 ];
 
 const gameIds = [
-  '9829cb8b-ed9a-4b0a-9b18-bbe4be265caf', // Real Madrid vs Barcelona
-  'c2cb5120-70b9-4c6c-8d14-da815ff38ab6', // Lakers vs Warriors
-  'be62b201-ce68-41fe-bab3-a48b61453b46', // Djokovic vs Nadal
-  '9a314a76-6506-45a8-a6ed-4b6170491097', // CS:GO Major Championship
-  '7ab7a374-e317-4446-b6c9-0c95145ec54d', // Kentucky Derby
+  'f783c034-82a0-4da5-b94a-06662871f974', // Real Madrid vs Barcelona
+  '1be6aad2-fee9-4ce1-b9b0-a2ba066f802e', // Lakers vs Warriors
+  'ab75e9c4-8c8e-4793-b048-6e37b8b3ace3', // Djokovic vs Nadal
+  '2d9b0ed2-8cfa-41dc-aed5-b797c03742cd', // CS:GO Major Championship
+  '0caf8d8c-b77b-40c3-b152-8692010585fb', // Kentucky Derby
 ];
 
 const betTypes = ['win', 'lose', 'draw', 'over', 'under', 'exact_score', 'total_goals', 'first_goal', 'last_goal'];
@@ -68,12 +66,6 @@ function generateBetData() {
   };
 }
 
-// Helper function to simulate database latency (since we can't directly measure it in K6)
-function simulateGrpcLatency() {
-  const latency = Math.random() * 50 + 10; // 10-60ms
-  grpcLatency.add(latency);
-  return latency;
-}
 
 // Helper function to simulate Kafka latency
 function simulateKafkaLatency() {
@@ -113,14 +105,12 @@ export default function () {
   if (betSuccess) {
     betCounter.add(1);
     
-    // Record database and Kafka latencies based on response
+    // Record Kafka latencies based on response
     const responseData = JSON.parse(betResponse.body);
     if (responseData.processingTime) {
-      grpcLatency.add(responseData.processingTime.database || 0);
       kafkaLatency.add(responseData.processingTime.total - (responseData.processingTime.database || 0));
     } else {
       // Fallback simulation
-      simulateGrpcLatency();
       simulateKafkaLatency();
     }
   }

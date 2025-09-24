@@ -14,8 +14,6 @@ This document describes the recommended repository structure for the distributed
 │   │   ├── app.js                      # Main application file
 │   │   ├── package.json                # Node.js dependencies
 │   │   ├── Dockerfile                  # Container image definition
-│   │   └── /proto                      # gRPC protocol definitions
-│   │       └── wallet.proto            # Wallet service proto file
 │   │
 │   └── /k6                             # Load testing
 │       ├── script.js                   # K6 load test script
@@ -63,7 +61,6 @@ This document describes the recommended repository structure for the distributed
 - **`app.js`**: Main Node.js microservice implementing the distributed systems workflow
 - **`package.json`**: Node.js dependencies and scripts
 - **`Dockerfile`**: Multi-stage container build for production
-- **`/proto/wallet.proto`**: gRPC protocol buffer definition for wallet service
 
 #### Load Testing (`/src/k6`)
 - **`script.js`**: K6 load testing script with custom metrics
@@ -178,7 +175,6 @@ curl http://localhost:3000/metrics
 
 ### Microservices
 - **Node.js App**: Main application handling HTTP requests
-- **gRPC Wallet Service**: Low-latency balance operations
 - **Kafka**: High-throughput message streaming
 - **PostgreSQL**: ACID-compliant transaction storage
 - **ClickHouse**: High-performance analytics storage
@@ -227,7 +223,6 @@ curl http://localhost:3000/metrics
 - `DATABASE_URL`: PostgreSQL connection string
 - `CLICKHOUSE_URL`: ClickHouse connection string
 - `KAFKA_BROKERS`: Kafka broker addresses
-- `GRPC_WALLET_URL`: gRPC wallet service address
 
 ### Kubernetes
 - Namespace: `distributed-systems`

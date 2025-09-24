@@ -128,7 +128,7 @@ docker compose exec clickhouse clickhouse-client
 ## 🎯 **What's Working Right Now**
 
 ✅ **All services are running and healthy**  
-✅ **Node.js app with gRPC, Kafka, PostgreSQL, ClickHouse integration**  
+✅ **Node.js app with Kafka, PostgreSQL, ClickHouse integration**  
 ✅ **Health checks and metrics endpoints**  
 ✅ **Monitoring with Prometheus and Grafana**  
 ✅ **Database initialization scripts**  

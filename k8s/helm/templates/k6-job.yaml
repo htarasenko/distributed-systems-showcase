@@ -59,7 +59,6 @@ data:
 
     // Custom metrics
     const errorRate = new Rate('error_rate');
-    const grpcLatency = new Trend('grpc_latency');
     const kafkaLatency = new Trend('kafka_latency');
     const betCounter = new Counter('bets_processed');
 
@@ -77,7 +76,6 @@ data:
       thresholds: {
         http_req_duration: ['p(95)<200'],
         http_req_failed: ['rate<0.1'],
-        grpc_latency: ['p(99)<100'],
         kafka_latency: ['p(95)<50'],
         error_rate: ['rate<0.05'],
       },

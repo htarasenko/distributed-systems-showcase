@@ -18,16 +18,6 @@ jest.mock('kafkajs', () => ({
   }))
 }));
 
-jest.mock('@grpc/grpc-js', () => ({
-  loadPackageDefinition: jest.fn(),
-  credentials: {
-    createInsecure: jest.fn()
-  }
-}));
-
-jest.mock('@grpc/proto-loader', () => ({
-  loadSync: jest.fn()
-}));
 
 // Global test timeout
 jest.setTimeout(10000);

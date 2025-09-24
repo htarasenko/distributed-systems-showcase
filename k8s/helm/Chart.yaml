@@ -1,12 +1,11 @@
 apiVersion: v2
 name: distributed-systems-showcase
-description: A distributed systems showcase with gRPC, Kafka, PostgreSQL, and ClickHouse
+description: A distributed systems showcase with Kafka, PostgreSQL, and ClickHouse
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
 keywords:
   - microservices
-  - grpc
   - kafka
   - postgresql
   - clickhouse

@@ -24,23 +24,7 @@ export const kafkaMessagesConsumed = new client.Counter({
   labelNames: ['topic']
 });
 
-// Kafka batching metrics
-export const kafkaBatchSize = new client.Histogram({
-  name: 'kafka_batch_size',
-  help: 'Size of Kafka message batches',
-  buckets: [1, 5, 10, 25, 50, 100, 200]
-});
-
-export const kafkaBatchLatency = new client.Histogram({
-  name: 'kafka_batch_latency_seconds',
-  help: 'Time spent waiting for batch completion',
-  buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1]
-});
-
-export const kafkaCompressionRatio = new client.Gauge({
-  name: 'kafka_compression_ratio',
-  help: 'Compression ratio of Kafka messages (compressed/original)'
-});
+// Kafka metrics (simplified, no batching)
 
 export const betProcessingDuration = new client.Histogram({
   name: 'bet_processing_duration_seconds',
@@ -80,9 +64,6 @@ export const connectionPoolUtilization = new client.Gauge({
 register.registerMetric(httpRequestDuration);
 register.registerMetric(kafkaMessagesProduced);
 register.registerMetric(kafkaMessagesConsumed);
-register.registerMetric(kafkaBatchSize);
-register.registerMetric(kafkaBatchLatency);
-register.registerMetric(kafkaCompressionRatio);
 register.registerMetric(betProcessingDuration);
 register.registerMetric(databaseOperations);
 register.registerMetric(connectionPoolTotal);

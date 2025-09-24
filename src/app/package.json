@@ -1,7 +1,7 @@
 {
   "name": "distributed-systems-app",
   "version": "1.0.0",
-  "description": "Distributed Systems Showcase - Node.js microservice with gRPC, Kafka, PostgreSQL, and ClickHouse",
+  "description": "Distributed Systems Showcase - Node.js microservice with Kafka, PostgreSQL, and ClickHouse",
   "main": "dist/app.js",
   "scripts": {
     "build": "tsc",
@@ -16,7 +16,6 @@
   },
   "keywords": [
     "microservices",
-    "grpc",
     "kafka",
     "postgresql",
     "clickhouse",

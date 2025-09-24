@@ -5,8 +5,6 @@ const morgan = require('morgan');
 const { Pool } = require('pg');
 const { ClickHouse } = require('clickhouse');
 const { Kafka } = require('kafkajs');
-const grpc = require('@grpc/grpc-js');
-const protoLoader = require('@grpc/proto-loader');
 const { v4: uuidv4 } = require('uuid');
 const Joi = require('joi');
 const winston = require('winston');
@@ -35,15 +33,9 @@ const kafkaMessagesProduced = new client.Counter({
   labelNames: ['topic']
 });
 
-const grpcRequestsTotal = new client.Counter({
-  name: 'grpc_requests_total',
-  help: 'Total number of gRPC requests',
-  labelNames: ['method', 'status']
-});
 
 register.registerMetric(httpRequestDuration);
 register.registerMetric(kafkaMessagesProduced);
-register.registerMetric(grpcRequestsTotal);
 
 // Initialize logger
 const logger = winston.createLogger({
@@ -81,21 +73,6 @@ const kafka = new Kafka({
 
 const producer = kafka.producer();
 
-// gRPC setup
-const PROTO_PATH = __dirname + '/proto/wallet.proto';
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true
-});
-
-const walletProto = grpc.loadPackageDefinition(packageDefinition).wallet;
-const grpcClient = new walletProto.WalletService(
-  process.env.GRPC_WALLET_URL || 'localhost:50051',
-  grpc.credentials.createInsecure()
-);
 
 // Middleware
 app.use(helmet());
@@ -154,7 +131,7 @@ const betSchema = Joi.object({
   betType: Joi.string().valid('single', 'multiple', 'system').required()
 });
 
-// Betting endpoint - demonstrates gRPC + Kafka workflow
+// Betting endpoint - demonstrates Kafka workflow
 app.post('/api/bet', async (req, res) => {
   const startTime = Date.now();
   const client = await pgPool.connect();
